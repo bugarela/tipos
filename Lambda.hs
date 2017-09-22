@@ -33,12 +33,12 @@ tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
 
 
 ex1 = Lam "f" (Lam "x" (App (Var "f") (Var "x")))
-ex2 = Lam "x" (App (Var "x") (Var "x")) // impossible
+ex2 = Lam "x" (App (Var "x") (Var "x")) -- impossible
 ex3 = Lam "g" (Lam "f" (Lam "x" (App (Var "g") (App (Var "f") (Var "x")))))
 ex4 = Lam "x" (App (App (Var "+") (Var "x")) (Var "x"))
 ex5 = Lam "x" (Lam "y" (If (Var "x") (Var "x") (Var "y")))
 ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (App (App (Var "+") (Var "x")) (Var "y")) (App (App (Var "*") (Var "x")) (Var "y"))))
-ex7 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "x"))) // impossible
+ex7 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "x"))) -- impossible
 ex8 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "False")))
 
 contexto = ["Just":>:(TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
