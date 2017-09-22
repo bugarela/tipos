@@ -15,19 +15,28 @@ data SimpleType  = TVar Id
                   | TCon Id
                   | TApp SimpleType SimpleType
                   deriving Eq
+                  
+data Pat = PVar Id | PLit Literal | PCon Id [Pat] deriving (Eq, Show)
 
 instance Show SimpleType where
-   show (TVar i) = i
-   show (TArr (TVar i) t) = i++"->"++show t   
-   show (TArr t t') = "("++show t++")"++"->"++show t'
-   show (TCon i) = show i
-   show (TApp c v) = show c ++ " " ++ show v
-   show (Lit tipo) = show tipo				  
+    show (TVar i) = i
+    show (TArr (TVar i) t) = i++"->"++show t
+    show (TArr (Lit tipo) t) = (show tipo)++"->"++show t
+    show (TArr t t') = "("++show t++")"++"->"++show t'
+    show (TCon i) = show i
+    show (TApp c v) = show c ++ " " ++ show v
+    show (Lit tipo) = show tipo
 --------------------------	  
+instance Functor TI where
+    fmap f (TI m) = TI (\e -> let (a, e') = m e in (f a, e'))
 
+instance Applicative TI where
+    pure a = TI (\e -> (a, e))
+    TI fs <*> TI vs = TI (\e -> let (f, e') = fs e; (a, e'') = vs e' in (f a, e''))
+    
 instance Monad TI where 
-   return x = TI (\e -> (x, e))
-   TI m >>= f  = TI (\e -> let (a, e') = m e; TI fa = f a in fa e')
+    return x = TI (\e -> (x, e))
+    TI m >>= f  = TI (\e -> let (a, e') = m e; TI fa = f a in fa e')
 
 freshVar :: TI SimpleType
 freshVar = TI (\e -> let v = "t"++show e in (TVar v, e+1))
@@ -82,7 +91,7 @@ varBind u t | t == TVar u   = Just []
             | t == TCon u   = Just []
             | u `elem` tv t = Nothing
             | otherwise     = Just [(u, t)]
-			
+
 mgu (TArr l r,  TArr l' r') = do s1 <- mgu (l,l')
                                  s2 <- mgu ((apply s1 r) ,  (apply s1 r'))
                                  return (s2 @@ s1)
@@ -93,8 +102,8 @@ mgu (t,        TVar u   )   =  varBind u t
 mgu (TVar u,   t        )   =  varBind u t
 mgu (t,        TCon u   )   =  varBind u t
 mgu (TCon u,   t        )   =  varBind u t
-mgu (t,        Lit u    )   =  Just []
-mgu (Lit u,    t        )   =  Just []
+mgu (Lit u,      Lit t  )   =  if (u==t) then Just[] else Nothing
+
 
 
 
@@ -102,4 +111,7 @@ unify t t' =  case mgu (t,t') of
     Nothing -> error ("unification: trying to unify\n" ++ (show t) ++ "\nand\n" ++
                       (show t'))
     Just s  -> s
- 
+
+--patMatch (Var a, PVar b) = a == b
+--patMatch (Lit a, PLit b) = a == b
+--patMatch (PCon a (x:xs), (y:ys) = x == (a y)
