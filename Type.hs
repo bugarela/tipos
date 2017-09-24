@@ -102,14 +102,13 @@ mgu (t,        TVar u   )   =  varBind u t
 mgu (TVar u,   t        )   =  varBind u t
 mgu (t,        TCon u   )   =  varBind u t
 mgu (TCon u,   t        )   =  varBind u t
-mgu (Lit u,      Lit t  )   =  if (u==t) then Just[] else Nothing
+mgu (Lit u,    Lit t    )   =  if (u==t) then Just[] else Nothing
 
 
 
 
 unify t t' =  case mgu (t,t') of
-    Nothing -> error ("unification: trying to unify\n" ++ (show t) ++ "\nand\n" ++
-                      (show t'))
+    Nothing -> error ("unification: trying to unify\n" ++ (show t) ++ "\nand\n" ++ (show t'))
     Just s  -> s
 
 --patMatch (Var a, PVar b) = a == b
