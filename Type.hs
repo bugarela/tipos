@@ -27,12 +27,12 @@ instance Show SimpleType where
     show (TApp c v) = show c ++ " " ++ show v
     show (Lit tipo) = show tipo
 --------------------------	  
-instance Functor TI where
-    fmap f (TI m) = TI (\e -> let (a, e') = m e in (f a, e'))
+--instance Functor TI where
+--   fmap f (TI m) = TI (\e -> let (a, e') = m e in (f a, e'))
 
-instance Applicative TI where
-    pure a = TI (\e -> (a, e))
-    TI fs <*> TI vs = TI (\e -> let (f, e') = fs e; (a, e'') = vs e' in (f a, e''))
+--instance Applicative TI where
+--    pure a = TI (\e -> (a, e))
+--    TI fs <*> TI vs = TI (\e -> let (f, e') = fs e; (a, e'') = vs e' in (f a, e''))
     
 instance Monad TI where 
     return x = TI (\e -> (x, e))

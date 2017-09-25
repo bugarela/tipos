@@ -7,9 +7,6 @@ data Expr =  Var Id
             | Case Expr [(Pat,Expr)]
             deriving (Eq, Show)
 
-tFinal (TArr _ t) = tFinal t
-tFinal t = t
-
 tiContext g i = let (_ :>: t) = head (dropWhile (\(i' :>: _) -> i /= i' ) g) in t
 
 tiExpr g (Var i) = return (tiContext g i, [])
@@ -28,7 +25,16 @@ tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          let s = s1 @@ s2 @@ s3 @@ u1
                          let u2 = unify (apply s b) (apply s c)
                          return (apply u2 (apply s3 (apply s2 (apply u1 (apply s1 b)))), s3 @@ s2 @@ s1 @@ u1 @@ u2)
---tiExpr g (Case x [(y,z):ls]) = do (a,s1) <- tiExpr g x
+--tiExpr g (Case x ls) = do (a,s1) <- tiExpr g x
+--                          let s2 = tiExpr' (apply s1 g) ls
+--                          return (apply s2 (apply s1 a), s1 @@ s2)
+--tiExpr' :: [Assump] -> [(Pat,Expr)] -> TI Subst
+--tiExpr' g [(x,y)] = [snd (tiExpr g y)]
+--tiExpr' g ((x,y):ls) = do let s1 = [snd (tiExpr g y)]
+--                          let s2 = tiExpr' (apply s1 g) ls
+--                          return (s1 @@ s2)
+
+
                                    
 
 
@@ -40,6 +46,7 @@ ex5 = Lam "x" (Lam "y" (If (Var "x") (Var "x") (Var "y")))
 ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (App (App (Var "+") (Var "x")) (Var "y")) (App (App (Var "*") (Var "x")) (Var "y"))))
 ex7 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "x"))) -- impossible
 ex8 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "False")))
+ex9 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(Var "x")),(PCon "Nothing" [],Var "y")])
 
 contexto = ["Just":>:(TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
             "Nothing":>: (TApp (TCon "Maybe") (TVar "a")),
