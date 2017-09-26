@@ -15,7 +15,7 @@ data SimpleType  = TVar Id
                   | TCon Id
                   | TApp SimpleType SimpleType
                   deriving Eq
-                  
+
 data Pat = PVar Id | PLit Literal | PCon Id [Pat] deriving (Eq, Show)
 
 instance Show SimpleType where
@@ -26,41 +26,41 @@ instance Show SimpleType where
     show (TCon i) = show i
     show (TApp c v) = show c ++ " " ++ show v
     show (Lit tipo) = show tipo
---------------------------	  
---instance Functor TI where
---   fmap f (TI m) = TI (\e -> let (a, e') = m e in (f a, e'))
+--------------------------
+instance Functor TI where
+   fmap f (TI m) = TI (\e -> let (a, e') = m e in (f a, e'))
 
---instance Applicative TI where
---    pure a = TI (\e -> (a, e))
---    TI fs <*> TI vs = TI (\e -> let (f, e') = fs e; (a, e'') = vs e' in (f a, e''))
-    
-instance Monad TI where 
+instance Applicative TI where
+    pure a = TI (\e -> (a, e))
+    TI fs <*> TI vs = TI (\e -> let (f, e') = fs e; (a, e'') = vs e' in (f a, e''))
+
+instance Monad TI where
     return x = TI (\e -> (x, e))
     TI m >>= f  = TI (\e -> let (a, e') = m e; TI fa = f a in fa e')
 
 freshVar :: TI SimpleType
 freshVar = TI (\e -> let v = "t"++show e in (TVar v, e+1))
 
-runTI (TI m) = let (t, _) = m 0 in t 
+runTI (TI m) = let (t, _) = m 0 in t
 
 ----------------------------
-t --> t' = TArr t t' 
+t --> t' = TArr t t'
 
 infixr 4 @@
 (@@)       :: Subst -> Subst -> Subst
 s1 @@ s2    = [ (u, apply s1 t) | (u,t) <- s2 ] ++ s1
 
----------------------------- 
+----------------------------
 class Subs t where
   apply :: Subst -> t -> t
   tv    :: t -> [Id]
 
 instance Subs SimpleType where
-  apply s (TVar u)  =   
+  apply s (TVar u)  =
                     case lookup u s of
                        Just t  -> t
                        Nothing -> TVar u
-  apply s (TCon u)  =   
+  apply s (TCon u)  =
                     case lookup u s of
                        Just t  -> t
                        Nothing -> TCon u
@@ -80,11 +80,11 @@ instance Subs SimpleType where
 instance Subs a => Subs [a] where
   apply s     = map (apply s)
   tv          = nub . concat . map tv
-  
+
 instance Subs Assump where
   apply s (i:>:t) = i:>:apply s t
   tv (i:>:t) = tv t
-  
+
 ------------------------------------
 varBind :: Id -> SimpleType -> Maybe Subst
 varBind u t | t == TVar u   = Just []
