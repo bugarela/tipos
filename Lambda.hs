@@ -29,21 +29,25 @@ tiExpr g (Case x ls) = do (a,s1) <- tiExpr g x
                           (b,s2) <- tiAlts (apply s1 g) ls
                           return (apply s2 a-->b, s1 @@ s2)
 
+tiPat :: [Assump] -> Pat -> (SimpleType,[Assump])
 tiPat g (PVar i) = (TVar i, g++[i:>:(TVar i)])
 tiPat g (PLit tipo) = (Lit tipo, g)
-tiPat g (PCon i []) = (TCon i, g++[i:>:(TCon i)])
+tiPat g (PCon i []) = (TCon i, g)
 tiPat g (PCon i xs) = do (t,g') <- (tiPats g xs)
                          return ((TApp (TCon i) t), g')
 
+tiPats :: [Assump] -> [Pat] -> (SimpleType,[Assump])
 tiPats g [pat] = tiPat g pat
 tiPats g (p:ps) = do (t1,g1) <- (tiPat g p)
-                     (t2,g2) <- (tiPats g ps)
-                     return (TApp t1 t2, g1++g2)
+                     (t2,g2) <- (tiPats (g++g1) ps)
+                     return (TArr t2 t1, g2)
 
+tiAlt :: [Assump] -> (Pat,Expr) -> (SimpleType,Subst)
 tiAlt g (pat,e) = do (t,g') <- tiPat g pat
                      (t',s) <- tiExpr (g' ++ g) e
-                     return (apply s t-->t',s)
+                     return (apply s (t-->t'),s)
 
+tiAlts :: [Assump] -> [(Pat,Expr)] -> TI (SimpleType,Subst)
 tiAlts g [x] =  (tiAlt g x)
 tiAlts g (l:ls) = do (t,s) <- tiAlt g l
                      (t',s') <- tiAlts (apply s g) ls
