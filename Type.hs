@@ -105,8 +105,6 @@ mgu (TCon u,   t        )   =  varBind u t
 mgu (Lit u,    Lit t    )   =  if (u==t) then Just[] else Nothing
 
 
-
-
 unify t t' =  case mgu (t,t') of
     Nothing -> error ("unification: trying to unify\n" ++ (show t) ++ "\nand\n" ++ (show t'))
     Just s  -> s

@@ -9,6 +9,8 @@ data Expr =  Var Id
 
 tiContext g i = let (_ :>: t) = head (dropWhile (\(i' :>: _) -> i /= i' ) g) in t
 
+divide (TArr a b) = (a,b)
+
 tiExpr g (Var i) = return (tiContext g i, [])
 tiExpr g (App e e') = do (t, s1) <- tiExpr g e
                          (t', s2) <- tiExpr (apply s1 g) e'
@@ -27,22 +29,26 @@ tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          return (apply u2 (apply s3 (apply s2 (apply u1 (apply s1 b)))), s3 @@ s2 @@ s1 @@ u1 @@ u2)
 tiExpr g (Case x ls) = do (a,s1) <- tiExpr g x
                           (b,s2) <- tiAlts (apply s1 g) ls
-                          return (apply s2 a-->b, s1 @@ s2)
+                          let p = fst(divide b)
+                          let e = snd(divide b)
+                          let u = unify a p
+                          return (apply u (a-->e), s1 @@ s2 @@ u)
 
-tiPat :: [Assump] -> Pat -> (SimpleType,[Assump])
-tiPat g (PVar i) = (TVar i, g++[i:>:(TVar i)])
-tiPat g (PLit tipo) = (Lit tipo, g)
-tiPat g (PCon i []) = (TCon i, g)
+tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
+tiPat g (PVar i) = do return(TVar i, g++[i:>:(TVar i)])
+tiPat g (PLit tipo) = do return(Lit tipo, g)
+tiPat g (PCon i []) = do let t = tiContext g i
+                         return(t, g)
 tiPat g (PCon i xs) = do (t,g') <- (tiPats g xs)
                          return ((TApp (TCon i) t), g')
 
-tiPats :: [Assump] -> [Pat] -> (SimpleType,[Assump])
+tiPats :: [Assump] -> [Pat] -> TI (SimpleType,[Assump])
 tiPats g [pat] = tiPat g pat
 tiPats g (p:ps) = do (t1,g1) <- (tiPat g p)
                      (t2,g2) <- (tiPats (g++g1) ps)
                      return (TArr t2 t1, g2)
 
-tiAlt :: [Assump] -> (Pat,Expr) -> (SimpleType,Subst)
+tiAlt :: [Assump] -> (Pat,Expr) -> TI (SimpleType,Subst)
 tiAlt g (pat,e) = do (t,g') <- tiPat g pat
                      (t',s) <- tiExpr (g' ++ g) e
                      return (apply s (t-->t'),s)
@@ -63,6 +69,9 @@ ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (App (App 
 ex7 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "x"))) -- impossible
 ex8 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "False")))
 ex9 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "x"))),(PCon "Nothing" [],Var "y")])
+ex10 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothing" [],Var "y")])
+ex11 = Lam "y" (Case (Var "y") [(PLit Int,Var "y"),(PLit Bool,(App (App (Var "+") (Var "y")) (Var "y")))])
+ex12 = Lam "y" (Case (Var "y") [(PLit Int,Var "y")])
 
 contexto = ["Just":>:(TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
             "Nothing":>: (TApp (TCon "Maybe") (TVar "a")),
