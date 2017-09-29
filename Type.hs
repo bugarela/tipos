@@ -7,7 +7,7 @@ data TI a = TI (Index -> (a, Index))
 type Subst  = [(Id, SimpleType)]
 data Assump = Id :>: SimpleType deriving (Eq, Show)
 
-data Literal = Int | Bool deriving (Eq, Show)
+data Literal = Int | Bool | TInt Int | TBool Bool deriving (Eq)
 
 data SimpleType  = TVar Id
                   | TArr  SimpleType SimpleType
@@ -23,9 +23,16 @@ instance Show SimpleType where
     show (TArr (TVar i) t) = i++"->"++show t
     show (TArr (Lit tipo) t) = (show tipo)++"->"++show t
     show (TArr t t') = "("++show t++")"++"->"++show t'
-    show (TCon i) = show i
+    show (TCon i) = i
     show (TApp c v) = show c ++ " " ++ show v
+
     show (Lit tipo) = show tipo
+
+instance Show Literal where
+    show (TInt _) = "Int"
+    show (TBool _) = "Bool"
+    show Int = "Int"
+    show Bool = "Bool"
 --------------------------
 instance Functor TI where
    fmap f (TI m) = TI (\e -> let (a, e') = m e in (f a, e'))
@@ -102,13 +109,14 @@ mgu (t,        TVar u   )   =  varBind u t
 mgu (TVar u,   t        )   =  varBind u t
 mgu (t,        TCon u   )   =  varBind u t
 mgu (TCon u,   t        )   =  varBind u t
-mgu (Lit u,    Lit t    )   =  if (u==t) then Just[] else Nothing
+mgu (Lit u,    Lit t    )   =  if ((mLits u t) || (mLits t u)) then Just[] else Nothing
+
+mLits Bool (TBool _) = True
+mLits Int (TInt _) = True
+mLits _ _ = False
+
 
 
 unify t t' =  case mgu (t,t') of
     Nothing -> error ("unification: trying to unify\n" ++ (show t) ++ "\nand\n" ++ (show t'))
     Just s  -> s
-
---patMatch (Var a, PVar b) = a == b
---patMatch (Lit a, PLit b) = a == b
---patMatch (PCon a (x:xs), (y:ys) = x == (a y)

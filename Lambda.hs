@@ -27,38 +27,46 @@ tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          let s = s1 @@ s2 @@ s3 @@ u1
                          let u2 = unify (apply s b) (apply s c)
                          return (apply u2 (apply s3 (apply s2 (apply u1 (apply s1 b)))), s3 @@ s2 @@ s1 @@ u1 @@ u2)
-tiExpr g (Case x ls) = do (a,s1) <- tiExpr g x
-                          (b,s2) <- tiAlts (apply s1 g) ls
-                          let p = fst(divide b)
-                          let e = snd(divide b)
-                          let u = unify a p
-                          return (apply u (a-->e), s1 @@ s2 @@ u)
+tiExpr g (Case x ls) = (tiAlts g x ls)
 
 tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
-tiPat g (PVar i) = do return(TVar i, g++[i:>:(TVar i)])
-tiPat g (PLit tipo) = do return(Lit tipo, g)
+tiPat g (PVar i) = return (TVar i, g++[i:>:(TVar i)])
+tiPat g (PLit tipo) = return (Lit tipo, g)
 tiPat g (PCon i []) = do let t = tiContext g i
-                         return(t, g)
-tiPat g (PCon i xs) = do (t,g') <- (tiPats g xs)
-                         return ((TApp (TCon i) t), g')
+                         return (t, g)
+tiPat g (PCon i xs) = do let c = (tiContext g i)
+                         return (tiPats g c xs)
+                             --(t,g') <- tiPat g x
+                             --let u = unify t (fst (divide c))
+                             --let p =
+                             --return (tiPat (apply u (g++g')) (PCon (snd (divide c)) xs))
 
-tiPats :: [Assump] -> [Pat] -> TI (SimpleType,[Assump])
-tiPats g [pat] = tiPat g pat
-tiPats g (p:ps) = do (t1,g1) <- (tiPat g p)
-                     (t2,g2) <- (tiPats (g++g1) ps)
-                     return (TArr t2 t1, g2)
+tiPats :: [Assump] -> SimpleType -> [Pat] -> TI (SimpleType,[Assump])
+tiPats g (TArr a (TApp b a')) c (p:ps) = do (t,g') <- (tiPat g p)
+                                            let u = unify t a
+                                            return (TApp b (apply u a), apply u g')
+--tiPats g (TArr a (TArr b e)) c (p:ps) = do  (t,g') <- (tiPat g p)
+--                                            let u = unify t a
+--                                            (t2,g2) <- tiPats
+--                                            return (TApp b (apply u a), apply u g')
 
-tiAlt :: [Assump] -> (Pat,Expr) -> TI (SimpleType,Subst)
-tiAlt g (pat,e) = do (t,g') <- tiPat g pat
-                     (t',s) <- tiExpr (g' ++ g) e
-                     return (apply s (t-->t'),s)
+tiAlts :: [Assump] -> Expr -> [(Pat,Expr)] -> TI (SimpleType,Subst)
+tiAlts g x [(p,e)] = do (tx,s1) <- tiExpr g x
+                        (tp,g') <- tiPat (apply s1 g) p
+                        let u = unify tx tp
+                        (te,s2) <- tiExpr (apply u (g'++g)) e
+                        let s = s1 @@ s2 @@ u
+                        return (apply s te, s)
 
-tiAlts :: [Assump] -> [(Pat,Expr)] -> TI (SimpleType,Subst)
-tiAlts g [x] =  (tiAlt g x)
-tiAlts g (l:ls) = do (t,s) <- tiAlt g l
-                     (t',s') <- tiAlts (apply s g) ls
-                     let u = unify t t'
-                     return (apply u t, u @@ s @@ s')
+tiAlts g x ((p,e):ls) = do (tx,s1) <- tiExpr g x
+                           (tp,g') <- tiPat (apply s1 g) p
+                           let u = (unify tx tp) @@ s1
+                           (te,s2) <- tiExpr (apply u (g'++g)) e
+                           let s = s2 @@ u
+                           (t,s') <- (tiAlts (apply s (g'++g)) x ls)
+                           let u' = unify (apply s te) t
+                           let su = s @@ s1 @@ u'
+                           return (apply su t, su)
 
 ex1 = Lam "f" (Lam "x" (App (Var "f") (Var "x")))
 ex2 = Lam "x" (App (Var "x") (Var "x")) -- impossible
@@ -69,8 +77,9 @@ ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (App (App 
 ex7 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "x"))) -- impossible
 ex8 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "False")))
 ex9 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "x"))),(PCon "Nothing" [],Var "y")])
-ex10 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothing" [],Var "y")])
-ex11 = Lam "y" (Case (Var "y") [(PLit Int,Var "y"),(PLit Bool,(App (App (Var "+") (Var "y")) (Var "y")))])
+ex9' = Lam "y" (Case (Var "y") [(PCon "Nothing" [],Var "y"),(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "x")))])
+ex10 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothing" [],Var "y")]) -- impossible
+ex11 = Lam "y" (Case (Var "y") [(PLit (TInt 1),Var "y"),(PLit (TInt 2),(App (App (Var "+") (Var "y")) (Var "y")))])
 ex12 = Lam "y" (Case (Var "y") [(PLit Int,Var "y")])
 
 contexto = ["Just":>:(TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
