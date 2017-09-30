@@ -27,28 +27,21 @@ tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          let s = s1 @@ s2 @@ s3 @@ u1
                          let u2 = unify (apply s b) (apply s c)
                          return (apply u2 (apply s3 (apply s2 (apply u1 (apply s1 b)))), s3 @@ s2 @@ s1 @@ u1 @@ u2)
-tiExpr g (Case x ls) = (tiAlts g x ls)
+tiExpr g (Case x ls) = tiAlts g x ls
 
 tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
-tiPat g (PVar i) = return (TVar i, g++[i:>:(TVar i)])
+tiPat g (PVar i) = return (TVar i, g++[i:>:TVar i])
 tiPat g (PLit tipo) = return (Lit tipo, g)
 tiPat g (PCon i []) = do let t = tiContext g i
                          return (t, g)
-tiPat g (PCon i xs) = do let c = (tiContext g i)
-                         return (tiPats g c xs)
-                             --(t,g') <- tiPat g x
-                             --let u = unify t (fst (divide c))
-                             --let p =
-                             --return (tiPat (apply u (g++g')) (PCon (snd (divide c)) xs))
+tiPat g (PCon i xs) = do (t,g') <- (tiPats g xs)
+                         return ((TApp (TCon i) t), g')
 
-tiPats :: [Assump] -> SimpleType -> [Pat] -> TI (SimpleType,[Assump])
-tiPats g (TArr a (TApp b a')) c (p:ps) = do (t,g') <- (tiPat g p)
-                                            let u = unify t a
-                                            return (TApp b (apply u a), apply u g')
---tiPats g (TArr a (TArr b e)) c (p:ps) = do  (t,g') <- (tiPat g p)
---                                            let u = unify t a
---                                            (t2,g2) <- tiPats
---                                            return (TApp b (apply u a), apply u g')
+tiPats :: [Assump] -> [Pat] -> TI (SimpleType,[Assump])
+tiPats g [pat] = tiPat g pat
+tiPats g (p:ps) = do (t1,g1) <- (tiPat g p)
+                     (t2,g2) <- (tiPats (g++g1) ps)
+                     return (TArr t2 t1, g2)
 
 tiAlts :: [Assump] -> Expr -> [(Pat,Expr)] -> TI (SimpleType,Subst)
 tiAlts g x [(p,e)] = do (tx,s1) <- tiExpr g x
@@ -60,7 +53,7 @@ tiAlts g x [(p,e)] = do (tx,s1) <- tiExpr g x
 
 tiAlts g x ((p,e):ls) = do (tx,s1) <- tiExpr g x
                            (tp,g') <- tiPat (apply s1 g) p
-                           let u = (unify tx tp) @@ s1
+                           let u = unify tx tp @@ s1
                            (te,s2) <- tiExpr (apply u (g'++g)) e
                            let s = s2 @@ u
                            (t,s') <- (tiAlts (apply s (g'++g)) x ls)
@@ -82,15 +75,17 @@ ex10 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothin
 ex11 = Lam "y" (Case (Var "y") [(PLit (TInt 1),Var "y"),(PLit (TInt 2),(App (App (Var "+") (Var "y")) (Var "y")))])
 ex12 = Lam "y" (Case (Var "y") [(PLit Int,Var "y")])
 
-contexto = ["Just":>:(TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
-            "Nothing":>: (TApp (TCon "Maybe") (TVar "a")),
-            "+":>: (TArr (Lit Int) (TArr (Lit Int) (Lit Int))),
-            "-":>: (TArr (Lit Int) (TArr (Lit Int) (Lit Int))),
-            "*":>: (TArr (Lit Int) (TArr (Lit Int) (Lit Int))),
-            "/":>: (TArr (Lit Int) (TArr (Lit Int) (Lit Int))),
+-- \y->(case y of {Left x -> (x,'a');Right x -> (True,x)}) :: Either Bool Char -> (Bool, Char)
+
+contexto = ["Just":>:TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a")),
+            "Nothing":>: TApp (TCon "Maybe") (TVar "a"),
+            "+":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
+            "-":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
+            "*":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
+            "/":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
             "True":>: Lit Bool,
             "False":>: Lit Bool,
-            "==":>: (TArr (Lit Int) (TArr (Lit Int) (Lit Bool)))]
+            "==":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool))]
 
 infer e = runTI (tiExpr contexto e)
 magic e = fst (infer e)
