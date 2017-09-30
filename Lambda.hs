@@ -35,18 +35,20 @@ tiPat g (PLit tipo) = return (Lit tipo, g)
 tiPat g (PCon i []) = do let t = tiContext g i
                          return (t, g)
 tiPat g (PCon i xs) = do (t,g') <- (tiPats g xs)
-                         return ((TApp (TCon i) t), g')
+                         let tc = tiContext g i
+                         let c = appParametros tc t
+                         return (c, g')
 
-tiPats :: [Assump] -> [Pat] -> TI (SimpleType,[Assump])
-tiPats g [pat] = tiPat g pat
+tiPats :: [Assump] -> [Pat] -> TI ([SimpleType],[Assump])
+tiPats g [] = return ([],g)
 tiPats g (p:ps) = do (t1,g1) <- (tiPat g p)
                      (t2,g2) <- (tiPats (g++g1) ps)
-                     return (TArr t2 t1, g2)
+                     return (t2++[t1], g2)
 
 tiAlts :: [Assump] -> Expr -> [(Pat,Expr)] -> TI (SimpleType,Subst)
 tiAlts g x [(p,e)] = do (tx,s1) <- tiExpr g x
                         (tp,g') <- tiPat (apply s1 g) p
-                        let u = unify tx tp
+                        let u = unify tx tp @@ s1
                         (te,s2) <- tiExpr (apply u (g'++g)) e
                         let s = s1 @@ s2 @@ u
                         return (apply s te, s)
@@ -62,20 +64,25 @@ tiAlts g x ((p,e):ls) = do (tx,s1) <- tiExpr g x
                            return (apply su t, su)
 
 ex1 = Lam "f" (Lam "x" (App (Var "f") (Var "x")))
-ex2 = Lam "x" (App (Var "x") (Var "x")) -- impossible
-ex3 = Lam "g" (Lam "f" (Lam "x" (App (Var "g") (App (Var "f") (Var "x")))))
-ex4 = Lam "x" (App (App (Var "+") (Var "x")) (Var "x"))
-ex5 = Lam "x" (Lam "y" (If (Var "x") (Var "x") (Var "y")))
-ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (App (App (Var "+") (Var "x")) (Var "y")) (App (App (Var "*") (Var "x")) (Var "y"))))
-ex7 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "x"))) -- impossible
-ex8 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "False")))
-ex9 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "x"))),(PCon "Nothing" [],Var "y")])
-ex9' = Lam "y" (Case (Var "y") [(PCon "Nothing" [],Var "y"),(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "x")))])
-ex10 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothing" [],Var "y")]) -- impossible
-ex11 = Lam "y" (Case (Var "y") [(PLit (TInt 1),Var "y"),(PLit (TInt 2),(App (App (Var "+") (Var "y")) (Var "y")))])
-ex12 = Lam "y" (Case (Var "y") [(PLit Int,Var "y")])
+ex2 = Lam "g" (Lam "f" (Lam "x" (App (Var "g") (App (Var "f") (Var "x")))))
+ex3 = Lam "x" (App (App (Var "+") (Var "x")) (Var "x"))
+ex4 = Lam "x" (Lam "y" (If (Var "x") (Var "x") (Var "y")))
+ex5 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (App (App (Var "+") (Var "x")) (Var "y")) (App (App (Var "*") (Var "x")) (Var "y"))))
+ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "False")))
+ex7 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "x"))),(PCon "Nothing" [],Var "y")])
+ex8 = Lam "y" (Case (Var "y") [(PLit (TInt 1),Var "y"),(PLit (TInt 2),(App (App (Var "+") (Var "y")) (Var "y")))])
+ex9 = Lam "y" (Case (Var "y") [(PLit Int,Var "y")])
 
--- \y->(case y of {Left x -> (x,'a');Right x -> (True,x)}) :: Either Bool Char -> (Bool, Char)
+--This are examples that should get an error
+bad1 = Lam "x" (App (Var "x") (Var "x"))
+bad2 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "x")))
+bad3 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(Var "y")),(PCon "Nothing" [],(Var "True"))])
+bad4 = Lam "y" (Case (Var "y") [(PCon "Nothing" [],Var "y"),(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "y")))])
+
+-- I don't know
+what = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothing" [],Var "y")])
+
+-- This won't work: \y->(case y of {Left x -> (x,'a');Right x -> (True,x)}) :: Either Bool Char -> (Bool, Char)
 
 contexto = ["Just":>:TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a")),
             "Nothing":>: TApp (TCon "Maybe") (TVar "a"),
@@ -85,7 +92,13 @@ contexto = ["Just":>:TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a")),
             "/":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
             "True":>: Lit Bool,
             "False":>: Lit Bool,
-            "==":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool))]
+            "==":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
+            ">=":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
+            "<=":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
+            ">":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
+            "<":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
+            "1":>: Lit Int,
+            "2":>: Lit Int]
 
 infer e = runTI (tiExpr contexto e)
 magic e = fst (infer e)

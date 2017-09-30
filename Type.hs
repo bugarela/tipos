@@ -21,7 +21,7 @@ data Pat = PVar Id | PLit Literal | PCon Id [Pat] deriving (Eq, Show)
 instance Show SimpleType where
     show (TVar i) = i
     show (TArr (TVar i) t) = i++"->"++show t
-    show (TArr (Lit tipo) t) = (show tipo)++"->"++show t
+    show (TArr (Lit tipo) t) = show tipo ++"->"++show t
     show (TArr t t') = "("++show t++")"++"->"++show t'
     show (TCon i) = i
     show (TApp c v) = show c ++ " " ++ show v
@@ -71,17 +71,17 @@ instance Subs SimpleType where
                     case lookup u s of
                        Just t  -> t
                        Nothing -> TCon u
-  apply s (Lit u)  = (Lit u)
+  apply _ (Lit u)  = Lit u
 
-  apply s (TArr l r) =  (TArr (apply s l) (apply s r))
-  apply s (TApp c v) =  (TApp (apply s c) (apply s v))
+  apply s (TArr l r) =  TArr (apply s l) (apply s r)
+  apply s (TApp c v) =  TApp (apply s c) (apply s v)
 
 
   tv (TVar u)  = [u]
   tv (TArr l r) = tv l `union` tv r
   tv (TApp c v) = tv c `union` tv v
   tv (TCon u) = [u]
-  tv (Lit u) = []
+  tv (Lit _) = []
 
 
 instance Subs a => Subs [a] where
@@ -90,7 +90,7 @@ instance Subs a => Subs [a] where
 
 instance Subs Assump where
   apply s (i:>:t) = i:>:apply s t
-  tv (i:>:t) = tv t
+  tv (_:>:t) = tv t
 
 ------------------------------------
 varBind :: Id -> SimpleType -> Maybe Subst
@@ -100,7 +100,7 @@ varBind u t | t == TVar u   = Just []
             | otherwise     = Just [(u, t)]
 
 mgu (TArr l r,  TArr l' r') = do s1 <- mgu (l,l')
-                                 s2 <- mgu ((apply s1 r) ,  (apply s1 r'))
+                                 s2 <- mgu ((apply s1 r),(apply s1 r'))
                                  return (s2 @@ s1)
 mgu (TApp c v, TApp c' v')  = do s1 <- mgu (c,c')
                                  s2 <- mgu ((apply s1 v) ,  (apply s1 v'))
@@ -109,14 +109,16 @@ mgu (t,        TVar u   )   =  varBind u t
 mgu (TVar u,   t        )   =  varBind u t
 mgu (t,        TCon u   )   =  varBind u t
 mgu (TCon u,   t        )   =  varBind u t
-mgu (Lit u,    Lit t    )   =  if ((mLits u t) || (mLits t u)) then Just[] else Nothing
+mgu (Lit u,    Lit t    )   =  if (u==t || (mLits u t) || (mLits t u)) then Just[] else Nothing
+mgu (_,        _        )   =  Nothing
 
 mLits Bool (TBool _) = True
 mLits Int (TInt _) = True
 mLits _ _ = False
 
-
-
 unify t t' =  case mgu (t,t') of
     Nothing -> error ("unification: trying to unify\n" ++ (show t) ++ "\nand\n" ++ (show t'))
     Just s  -> s
+
+appParametros i [] = i
+appParametros (TArr a i) (t:ts) = appParametros i ts
