@@ -1,11 +1,6 @@
+import Head
 import Type
-
-data Expr =  Var Id
-            | App Expr Expr
-            | Lam Id Expr
-            | If Expr Expr Expr
-            | Case Expr [(Pat,Expr)]
-            deriving (Eq, Show)
+import Parser
 
 tiContext g i = let (_ :>: t) = head (dropWhile (\(i' :>: _) -> i /= i' ) g) in t
 
