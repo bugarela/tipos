@@ -2,6 +2,15 @@ import Head
 import Type
 import Parser
 
+typeOf s = case parseExpr s of
+              Right e -> print (magic e)
+              Left err -> print err
+
+typeOfWithSubst s = case parseExpr s of
+                        Right e -> print (infer e)
+                        Left err -> print err
+
+
 tiContext g i = let (_ :>: t) = head (dropWhile (\(i' :>: _) -> i /= i' ) g) in t
 
 divide (TArr a b) = (a,b)

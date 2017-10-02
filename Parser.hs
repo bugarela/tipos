@@ -2,14 +2,16 @@ module Parser where
 import Text.Parsec
 import Text.Parsec.Token
 import Text.Parsec.Language
-import Data.Char as T
+import Data.Char
 import Head
 
 import Control.Monad.Identity (Identity)
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
-avaliarExpr e = parse expr "Erro:" e
+parseExpr e = parse expr "Erro:" e
+
+reservados = "{},;()\n "
 
 expr :: Parsec String () (Expr)
 expr = do l <- lam
@@ -26,14 +28,26 @@ term = do {i <- ifex; return i}
        do {v <- var; return v}
 
 alt :: Parsec String () (Pat, Expr)
-alt = do return (PVar "a",Var "a")
+alt = do p <- pat
+         spaces
+         string "->"
+         spaces
+         e <- expr
+         return (p,e)
+
+pat :: Parsec String () (Pat)
+pat = do {p <- plit; return p}
+      <|>
+      do {p <- pcon; return p}
+      <|>
+      do {p <- pvar; return p}
 
 lam :: Parsec String () (Expr)
 lam = do char '\\'
          var <- letter
          char '.'
          e <- expr
-         return (Lam (show var) e)
+         return (Lam [var] e)
 
 ifex :: Parsec String () (Expr)
 ifex = do string "if "
@@ -48,10 +62,31 @@ caseex :: Parsec String () (Expr)
 caseex = do string "case "
             e <- expr
             string " of {"
-            ps <- many1 alt
+            ps <- alt `sepBy` (char ';')
             char '}'
             return (Case e ps)
 
 var :: Parsec String () (Expr)
-var = do var <- letter
-         return (Var (show var))
+var = do var <- noneOf reservados
+         return (Var [var])
+
+pvar :: Parsec String () (Pat)
+pvar = do var <- noneOf reservados
+          return (PVar [var])
+
+plit :: Parsec String () (Pat)
+plit = do digits <- many1 digit
+          let n = foldl (\x d -> 10*x + toInteger (digitToInt d)) 0 digits
+          return (PLit (TInt (fromInteger n)))
+       <|>
+       do a <- string "True"
+          return (PLit (TBool True))
+       <|>
+       do a <- string "False"
+          return (PLit (TBool False))
+
+pcon :: Parsec String () (Pat)
+pcon = do var <- many1 letter
+          spaces
+          ps <- pat `sepBy` (char ' ')
+          return (PCon var ps)
