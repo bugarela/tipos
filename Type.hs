@@ -1,5 +1,5 @@
 module Type where
-import Data.List(nub, intersect, union)
+import Data.List(nub, intersect, union, nubBy)
 import Head
 
 --------------------------
@@ -20,6 +20,14 @@ freshVar = TI (\e -> let v = "t"++show e in (TVar v, e+1))
 runTI (TI m) = let (t, _) = m 0 in t
 
 ----------------------------
+
+
+
+(/+/)      :: [Assump] -> [Assump] -> [Assump]
+a1 /+/ a2    = nubBy assumpEq (a2 ++ a1)
+
+assumpEq (x:>:_) (u:>:_) = (x == u)
+
 t --> t' = TArr t t'
 
 infixr 4 @@

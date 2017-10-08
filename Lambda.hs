@@ -11,7 +11,10 @@ typeOfWithSubst s = case parseExpr s of
                         Left err -> print err
 
 
-tiContext g i = let (_ :>: t) = head (dropWhile (\(i' :>: _) -> i /= i' ) g) in t
+tiContext g i = if l /= [] then t else error ("Variavel " ++ i ++ " indefinida\n")
+    where
+        l = dropWhile (\(i' :>: _) -> i /= i' ) g
+        (_ :>: t) = head l
 
 divide (TArr a b) = (a,b)
 
@@ -22,7 +25,7 @@ tiExpr g (App e e') = do (t, s1) <- tiExpr g e
                          let s3 = unify (apply s2 t) (t' --> b)
                          return (apply s3 b, s3 @@ s2 @@ s1)
 tiExpr g (Lam i e) = do b <- freshVar
-                        (t, s)  <- tiExpr (g++[i:>:b]) e
+                        (t, s)  <- tiExpr (g /+/ [i:>:b]) e
                         return (apply s (b --> t), s)
 tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          let u1 = unify (apply s1 a) (Lit Bool)
@@ -34,37 +37,40 @@ tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
 tiExpr g (Case x ls) = tiAlts g x ls
 
 tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
-tiPat g (PVar i) = return (TVar i, g++[i:>:TVar i])
+tiPat g (PVar i) = do b <- freshVar
+                      return (b, g /+/ [i:>:b])
 tiPat g (PLit tipo) = return (Lit tipo, g)
 tiPat g (PCon i []) = do let t = tiContext g i
                          return (t, g)
-tiPat g (PCon i xs) = do (t,g') <- (tiPats g xs)
-                         let tc = tiContext g i
-                         let c = appParametros tc t
-                         return (c, g')
+tiPat g (PCon i xs) = do (ts,g') <- (tiPats g xs)
+                         let tc = tiContext g' i
+                         r <- freshVar
+                         let ta = foldr1 TArr (ts ++ [r])
+                         let u = unify tc ta
+                         return (apply u r, apply u g')
 
 tiPats :: [Assump] -> [Pat] -> TI ([SimpleType],[Assump])
 tiPats g [] = return ([],g)
 tiPats g (p:ps) = do (t1,g1) <- (tiPat g p)
-                     (t2,g2) <- (tiPats (g++g1) ps)
-                     return (t2++[t1], g2)
+                     (t2,g2) <- (tiPats (g /+/ g1) ps)
+                     return ([t1] ++ t2, g2)
 
 tiAlts :: [Assump] -> Expr -> [(Pat,Expr)] -> TI (SimpleType,Subst)
 tiAlts g x [(p,e)] = do (tx,s1) <- tiExpr g x
                         (tp,g') <- tiPat (apply s1 g) p
-                        let u = unify tx tp @@ s1
-                        (te,s2) <- tiExpr (apply u (g'++g)) e
-                        let s = s1 @@ s2 @@ u
+                        let u = unify tx tp
+                        (te,s2) <- tiExpr (apply u g') e
+                        let s = s2 @@ u
                         return (apply s te, s)
 
 tiAlts g x ((p,e):ls) = do (tx,s1) <- tiExpr g x
                            (tp,g') <- tiPat (apply s1 g) p
-                           let u = unify tx tp @@ s1
-                           (te,s2) <- tiExpr (apply u (g'++g)) e
+                           let u = unify tx tp
+                           (te,s2) <- tiExpr (apply u g') e
                            let s = s2 @@ u
-                           (t,s') <- (tiAlts (apply s (g'++g)) x ls)
-                           let u' = unify (apply s te) t
-                           let su = s @@ s1 @@ u'
+                           (t,s') <- (tiAlts (apply s g) x ls)
+                           let u' = unify (apply s' te) t
+                           let su = s @@ s' @@ u'
                            return (apply su t, su)
 
 ex1 = Lam "f" (Lam "x" (App (Var "f") (Var "x")))
@@ -76,6 +82,8 @@ ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True
 ex7 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "x"))),(PCon "Nothing" [],Var "y")])
 ex8 = Lam "y" (Case (Var "y") [(PLit (TInt 1),Var "y"),(PLit (TInt 2),(App (App (Var "+") (Var "y")) (Var "y")))])
 ex9 = Lam "y" (Case (Var "y") [(PLit Int,Var "y")])
+ex10 = (Lam "x" (Lam "w"(If (App (App (Var "=") (Var "x")) (Var "1")) (Lam "y" (Var "x")) (Lam "z" (Var "w")))))
+
 
 --This are examples that should get an error
 bad1 = Lam "x" (App (Var "x") (Var "x"))

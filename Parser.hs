@@ -11,7 +11,10 @@ import Control.Monad.Identity (Identity)
 
 parseExpr e = parse expr "Erro:" e
 
-reservados = "{},;()\n "
+reservados = "->{},;()\n "
+operators = map varof ["+","-","*","/","==",">","<",">=","<="]
+
+varof c = Var c
 
 expr :: Parsec String () (Expr)
 expr = do l <- lam
@@ -25,7 +28,7 @@ term = do {i <- ifex; return i}
        <|>
        do {c <- caseex; return c}
        <|>
-       do {v <- var; return v}
+       do {a <- apps; return a}
 
 alt :: Parsec String () (Pat, Expr)
 alt = do p <- pat
@@ -66,8 +69,15 @@ caseex = do string "case "
             char '}'
             return (Case e ps)
 
+apps :: Parsec String () (Expr)
+apps = do as <- many1 var
+          return (foldApp as)
+
 var :: Parsec String () (Expr)
-var = do var <- noneOf reservados
+var = do var <- varReservada
+         return (var)
+      <|>
+      do var <- noneOf reservados
          return (Var [var])
 
 pvar :: Parsec String () (Pat)
@@ -86,7 +96,30 @@ plit = do digits <- many1 digit
           return (PLit (TBool False))
 
 pcon :: Parsec String () (Pat)
-pcon = do var <- many1 letter
+pcon = do var <- conName
           spaces
-          ps <- pat `sepBy` (char ' ')
+          ps <- many pat
           return (PCon var ps)
+
+varReservada :: Parsec String () (Expr)
+varReservada = do {string "=="; return (Var "==")}
+               <|>
+               do {string ">="; return (Var ">=")}
+               <|>
+               do {string "<="; return (Var "<=")}
+               <|>
+               do {string "-"; return (Var "-")}
+               <|>
+               do {string ">"; return (Var ">")}
+               <|>
+               do {con <- conName; spaces; return (Var con)}
+
+conName :: Parsec String () ([Char])
+conName = do {string "Just"; return "Just"}
+          <|>
+          do {string "Nothing"; return "Nothing"}
+
+foldApp :: [Expr] -> Expr
+foldApp [x] = x
+foldApp [f,g] = if g `elem` operators then (App g f) else (App f g)
+foldApp (f:(g:as)) = if g `elem` operators then App (App g f) (foldApp as) else App (App f g) (foldApp as)
