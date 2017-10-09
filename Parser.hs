@@ -24,7 +24,9 @@ expr = do l <- lam
           return $ foldl1 App apps
 
 term :: Parsec String () (Expr)
-term = do {i <- ifex; return i}
+term = do {p <- lit; return p}
+       <|>
+       do {i <- ifex; return i}
        <|>
        do {c <- caseex; return c}
        <|>
@@ -79,6 +81,16 @@ var = do var <- varReservada
       <|>
       do var <- noneOf reservados
          return (Var [var])
+
+lit :: Parsec String () (Expr)
+lit = do digits <- many1 digit
+         return (Var digits)
+      <|>
+      do a <- string "True"
+         return (Var "True")
+      <|>
+      do a <- string "False"
+         return (Var "False")
 
 pvar :: Parsec String () (Pat)
 pvar = do var <- noneOf reservados
