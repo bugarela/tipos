@@ -4,6 +4,7 @@ type Index = Int
 type Id = String
 data TI a = TI (Index -> (a, Index))
 type Subst  = [(Id, SimpleType)]
+data Type = Forall SimpleType deriving (Eq, Show)
 data Assump = Id :>: SimpleType deriving (Eq, Show)
 
 data Literal = Int | Bool | TInt Int | TBool Bool deriving (Eq)
@@ -13,6 +14,7 @@ data SimpleType  = TVar Id
                  | TLit Literal
                  | TCon Id
                  | TApp SimpleType SimpleType
+                 | TGen Int
                  deriving Eq
 
 data Pat = PVar Id
@@ -26,6 +28,7 @@ data Expr =  Var Id
             | Lit Literal
             | If Expr Expr Expr
             | Case Expr [(Pat,Expr)]
+            | Let (Id,Expr) Expr
             deriving (Eq, Show)
 
 instance Show SimpleType where
