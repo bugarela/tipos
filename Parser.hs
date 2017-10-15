@@ -16,6 +16,8 @@ operators = map varof ["+","-","*","/","==",">","<",">=","<="]
 
 varof c = Var c
 
+---------------- TO DO: tuples ---------------
+
 expr :: Parsec String () (Expr)
 expr = do l <- lam
           return l
@@ -24,9 +26,7 @@ expr = do l <- lam
           return $ foldl1 App apps
 
 term :: Parsec String () (Expr)
-term = do {p <- lit; return p}
-       <|>
-       do {i <- ifex; return i}
+term = do {i <- ifex; return i}
        <|>
        do {c <- caseex; return c}
        <|>
@@ -72,25 +72,29 @@ caseex = do string "case "
             return (Case e ps)
 
 apps :: Parsec String () (Expr)
-apps = do as <- many1 var
+apps = do as <- many1 singleExpr
           return (foldApp as)
 
-var :: Parsec String () (Expr)
-var = do var <- varReservada
-         return (var)
-      <|>
-      do var <- noneOf reservados
-         return (Var [var])
+singleExpr :: Parsec String () (Expr)
+singleExpr = do var <- varReservada
+                return (var)
+             <|>
+             do l <- lit
+                return l
+             <|>
+             do var <- noneOf reservados
+                return (Var [var])
 
 lit :: Parsec String () (Expr)
 lit = do digits <- many1 digit
-         return (Var digits)
+         let n = foldl (\x d -> 10*x + toInteger (digitToInt d)) 0 digits
+         return (Lit (TInt (fromInteger n)))
       <|>
       do a <- string "True"
-         return (Var "True")
+         return (Lit (TBool True))
       <|>
       do a <- string "False"
-         return (Var "False")
+         return (Lit (TBool False))
 
 pvar :: Parsec String () (Pat)
 pvar = do var <- noneOf reservados
@@ -130,6 +134,10 @@ conName :: Parsec String () ([Char])
 conName = do {string "Just"; return "Just"}
           <|>
           do {string "Nothing"; return "Nothing"}
+          <|>
+          do {string "Left"; return "Left"}
+          <|>
+          do {string "Right"; return "Right"}
 
 foldApp :: [Expr] -> Expr
 foldApp [x] = x

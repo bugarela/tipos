@@ -19,6 +19,7 @@ tiContext g i = if l /= [] then t else error ("Variavel " ++ i ++ " indefinida\n
 divide (TArr a b) = (a,b)
 
 tiExpr g (Var i) = return (tiContext g i, [])
+tiExpr g (Lit u) = return (TLit u, [])
 tiExpr g (App e e') = do (t, s1) <- tiExpr g e
                          (t', s2) <- tiExpr (apply s1 g) e'
                          b <- freshVar
@@ -28,7 +29,7 @@ tiExpr g (Lam i e) = do b <- freshVar
                         (t, s)  <- tiExpr (g /+/ [i:>:b]) e
                         return (apply s (b --> t), s)
 tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
-                         let u1 = unify (apply s1 a) (Lit Bool)
+                         let u1 = unify (apply s1 a) (TLit Bool)
                          (b, s2) <- tiExpr (apply u1 (apply s1 g)) t
                          (c, s3) <- tiExpr (apply s2 (apply u1 (apply s1 g))) e
                          let s = s1 @@ s2 @@ s3 @@ u1
@@ -39,7 +40,7 @@ tiExpr g (Case x ls) = tiAlts g x ls
 tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
 tiPat g (PVar i) = do b <- freshVar
                       return (b, g /+/ [i:>:b])
-tiPat g (PLit tipo) = return (Lit tipo, g)
+tiPat g (PLit tipo) = return (TLit tipo, g)
 tiPat g (PCon i []) = do let t = tiContext g i
                          return (t, g)
 tiPat g (PCon i xs) = do (ts,g') <- (tiPats g xs)
@@ -94,23 +95,23 @@ bad4 = Lam "y" (Case (Var "y") [(PCon "Nothing" [],Var "y"),(PCon "Just" [(PVar 
 -- I don't know
 what = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothing" [],Var "y")])
 
--- This won't work: \y->(case y of {Left x -> (x,'a');Right x -> (True,x)}) :: Either Bool Char -> (Bool, Char)
+-- either example: "\\y.case y of {Left x ->x;Right x -> 1}"
 
 contexto = ["Just":>:TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a")),
             "Nothing":>: TApp (TCon "Maybe") (TVar "a"),
-            "+":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
-            "-":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
-            "*":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
-            "/":>: TArr (Lit Int) (TArr (Lit Int) (Lit Int)),
-            "True":>: Lit Bool,
-            "False":>: Lit Bool,
-            "==":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
-            ">=":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
-            "<=":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
-            ">":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
-            "<":>: TArr (Lit Int) (TArr (Lit Int) (Lit Bool)),
-            "1":>: Lit Int,
-            "2":>: Lit Int]
+            "Left":>: TArr (TVar "a") (TApp (TApp (TCon "Either") (TVar "a")) (TVar "b")),
+            "Right":>: TArr (TVar "a") (TApp (TApp (TCon "Either") (TVar "a")) (TVar "b")),
+            "+":>: TArr (TLit Int) (TArr (TLit Int) (TLit Int)),
+            "-":>: TArr (TLit Int) (TArr (TLit Int) (TLit Int)),
+            "*":>: TArr (TLit Int) (TArr (TLit Int) (TLit Int)),
+            "/":>: TArr (TLit Int) (TArr (TLit Int) (TLit Int)),
+            "True":>: TLit Bool,
+            "False":>: TLit Bool,
+            "==":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool)),
+            ">=":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool)),
+            "<=":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool)),
+            ">":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool)),
+            "<":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool))]
 
 infer e = runTI (tiExpr contexto e)
 magic e = fst (infer e)

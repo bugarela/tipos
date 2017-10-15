@@ -48,7 +48,7 @@ instance Subs SimpleType where
                     case lookup u s of
                        Just t  -> t
                        Nothing -> TCon u
-  apply _ (Lit u)  = Lit u
+  apply _ (TLit u)  = TLit u
 
   apply s (TArr l r) =  TArr (apply s l) (apply s r)
   apply s (TApp c v) =  TApp (apply s c) (apply s v)
@@ -58,7 +58,7 @@ instance Subs SimpleType where
   tv (TArr l r) = tv l `union` tv r
   tv (TApp c v) = tv c `union` tv v
   tv (TCon u) = [u]
-  tv (Lit _) = []
+  tv (TLit _) = []
 
 
 instance Subs a => Subs [a] where
@@ -86,7 +86,7 @@ mgu (t,        TVar u   )   =  varBind u t
 mgu (TVar u,   t        )   =  varBind u t
 mgu (t,        TCon u   )   =  varBind u t
 mgu (TCon u,   t        )   =  varBind u t
-mgu (Lit u,    Lit t    )   =  if (u==t || (mLits u t) || (mLits t u)) then Just[] else Nothing
+mgu (TLit u,    TLit t    )   =  if (u==t || (mLits u t) || (mLits t u)) then Just[] else Nothing
 mgu (_,        _        )   =  Nothing
 
 mLits Bool (TBool _) = True
