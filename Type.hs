@@ -57,7 +57,7 @@ instance Subs SimpleType where
   tv (TVar u)  = [u]
   tv (TArr l r) = tv l `union` tv r
   tv (TApp c v) = tv c `union` tv v
-  tv (TCon u) = [u]
+  tv (TCon u) = []
   tv (TLit _) = []
 
 
@@ -68,6 +68,10 @@ instance Subs a => Subs [a] where
 instance Subs Assump where
   apply s (i:>:t) = i:>:apply s t
   tv (_:>:t) = tv t
+
+instance Subs Type where
+  apply s (Forall vs qt) = Forall vs (apply s qt)
+  tv (Forall vs qt)      = tv qt
 
 ------------------------------------
 varBind :: Id -> SimpleType -> Maybe Subst
@@ -86,7 +90,7 @@ mgu (t,        TVar u   )   =  varBind u t
 mgu (TVar u,   t        )   =  varBind u t
 mgu (t,        TCon u   )   =  varBind u t
 mgu (TCon u,   t        )   =  varBind u t
-mgu (TLit u,    TLit t    )   =  if (u==t || (mLits u t) || (mLits t u)) then Just[] else Nothing
+mgu (TLit u,    TLit t  )   =  if (u==t || (mLits u t) || (mLits t u)) then Just[] else Nothing
 mgu (_,        _        )   =  Nothing
 
 mLits Bool (TBool _) = True
@@ -94,8 +98,54 @@ mLits Int (TInt _) = True
 mLits _ _ = False
 
 unify t t' =  case mgu (t,t') of
-    Nothing -> error ("unification: trying to unify\n" ++ (show t) ++ "\nand\n" ++ (show t'))
+    Nothing -> error ("unification: trying to unify\n" ++ show t ++ "\nand\n" ++ show t')
     Just s  -> s
 
 appParametros i [] = i
-appParametros (TArr a i) (t:ts) = appParametros i ts
+appParametros (TArr _ i) (_:ts) = appParametros i ts
+
+quantify vs qt = Forall (apply s qt) where
+    vs' = [v | v <- tv qt, v `elem` vs]
+    s = zip vs' (map TGen [0..])
+
+quantifyAssump (i,t) = i:>:quantify (tv t) t
+
+countTypes (TArr l r) = max (countTypes l) (countTypes r)
+countTypes (TApp l r) = max (countTypes l) (countTypes r)
+countTypes (TGen n) = n
+countTypes t = 0
+
+manyFreshs t = (freshGenerator (countTypes t))
+
+freshGenerator 0 = [freshVar]
+freshGenerator n = [freshVar] ++ freshGenerator (n-1)
+
+freshInstance :: Type -> TI SimpleType
+freshInstance (Forall t) = do let fs = manyFreshs t
+                              return (inst fs t)
+
+class Instantiate t where
+  inst  :: [SimpleType] -> t -> t
+
+instance Instantiate SimpleType where
+  inst fs (TArr l r) = TArr (inst fs l) (inst fs r)
+  inst fs (TApp l r) = TApp (inst fs l) (inst fs r)
+  inst fs (TGen n) = fs !! n
+  inst _ t = t
+
+
+context = [("Just", TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
+           ("Nothing", TApp (TCon "Maybe") (TVar "a")),
+           ("Left", TArr (TVar "a") (TApp (TApp (TCon "Either") (TVar "a")) (TVar "b"))),
+           ("Right", TArr (TVar "a") (TApp (TApp (TCon "Either") (TVar "a")) (TVar "b"))),
+           ("+", TArr (TLit Int) (TArr (TLit Int) (TLit Int))),
+           ("-", TArr (TLit Int) (TArr (TLit Int) (TLit Int))),
+           ("*", TArr (TLit Int) (TArr (TLit Int) (TLit Int))),
+           ("/", TArr (TLit Int) (TArr (TLit Int) (TLit Int))),
+           ("==", TArr (TLit Int) (TArr (TLit Int) (TLit Bool))),
+           (">=", TArr (TLit Int) (TArr (TLit Int) (TLit Bool))),
+           ("<=", TArr (TLit Int) (TArr (TLit Int) (TLit Bool))),
+           (">", TArr (TLit Int) (TArr (TLit Int) (TLit Bool))),
+           ("<", TArr (TLit Int) (TArr (TLit Int) (TLit Bool)))]
+
+quantifiedContext = map quantifyAssump context

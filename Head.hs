@@ -5,7 +5,7 @@ type Id = String
 data TI a = TI (Index -> (a, Index))
 type Subst  = [(Id, SimpleType)]
 data Type = Forall SimpleType deriving (Eq, Show)
-data Assump = Id :>: SimpleType deriving (Eq, Show)
+data Assump = Id :>: Type deriving (Eq, Show)
 
 data Literal = Int | Bool | TInt Int | TBool Bool deriving (Eq)
 
@@ -40,6 +40,7 @@ instance Show SimpleType where
     show (TApp c v) = show c ++ " " ++ show v
 
     show (TLit tipo) = show tipo
+    show (TGen n) = "tg" ++ show n
 
 instance Show Literal where
     show (TInt _) = "Int"

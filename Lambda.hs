@@ -16,8 +16,6 @@ tiContext g i = if l /= [] then t else error ("Variavel " ++ i ++ " indefinida\n
         l = dropWhile (\(i' :>: _) -> i /= i' ) g
         (_ :>: t) = head l
 
-divide (TArr a b) = (a,b)
-
 tiExpr g (Var i) = return (tiContext g i, [])
 tiExpr g (Lit u) = return (TLit u, [])
 tiExpr g (App e e') = do (t, s1) <- tiExpr g e
@@ -44,7 +42,7 @@ tiPat g (PLit tipo) = return (TLit tipo, g)
 tiPat g (PCon i []) = do let t = tiContext g i
                          return (t, g)
 tiPat g (PCon i xs) = do (ts,g') <- (tiPats g xs)
-                         let tc = tiContext g' i
+                         let tc = freshInstance (tiContext g' i)
                          r <- freshVar
                          let ta = foldr1 TArr (ts ++ [r])
                          let u = unify tc ta
@@ -97,21 +95,7 @@ what = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothin
 
 -- either example: "\\y.case y of {Left x ->x;Right x -> 1}"
 
-contexto = ["Just":>:TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a")),
-            "Nothing":>: TApp (TCon "Maybe") (TVar "a"),
-            "Left":>: TArr (TVar "a") (TApp (TApp (TCon "Either") (TVar "a")) (TVar "b")),
-            "Right":>: TArr (TVar "a") (TApp (TApp (TCon "Either") (TVar "a")) (TVar "b")),
-            "+":>: TArr (TLit Int) (TArr (TLit Int) (TLit Int)),
-            "-":>: TArr (TLit Int) (TArr (TLit Int) (TLit Int)),
-            "*":>: TArr (TLit Int) (TArr (TLit Int) (TLit Int)),
-            "/":>: TArr (TLit Int) (TArr (TLit Int) (TLit Int)),
-            "True":>: TLit Bool,
-            "False":>: TLit Bool,
-            "==":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool)),
-            ">=":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool)),
-            "<=":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool)),
-            ">":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool)),
-            "<":>: TArr (TLit Int) (TArr (TLit Int) (TLit Bool))]
 
-infer e = runTI (tiExpr contexto e)
+
+infer e = runTI (tiExpr quantifiedContext e)
 magic e = fst (infer e)

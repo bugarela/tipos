@@ -73,6 +73,7 @@ caseex = do string "case "
 
 apps :: Parsec String () (Expr)
 apps = do as <- many1 singleExpr
+          spaces
           return (foldApp as)
 
 singleExpr :: Parsec String () (Expr)
