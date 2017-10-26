@@ -13,6 +13,7 @@ parseExpr e = parse expr "Erro:" e
 
 reservados = "->{},;()\n "
 operators = map varof ["+","-","*","/","==",">","<",">=","<="]
+opsymbols = "><=-+*/"
 
 varof c = Var c
 
@@ -38,6 +39,7 @@ alt = do p <- pat
          string "->"
          spaces
          e <- expr
+         spaces
          return (p,e)
 
 pat :: Parsec String () (Pat)
@@ -51,7 +53,9 @@ lam :: Parsec String () (Expr)
 lam = do char '\\'
          var <- letter
          char '.'
+         spaces
          e <- expr
+         spaces
          return (Lam [var] e)
 
 ifex :: Parsec String () (Expr)
@@ -61,6 +65,7 @@ ifex = do string "if "
           e2 <- expr
           string " else "
           e3 <- expr
+          spaces
           return (If e1 e2 e3)
 
 caseex :: Parsec String () (Expr)
@@ -77,24 +82,31 @@ apps = do as <- many1 singleExpr
           return (foldApp as)
 
 singleExpr :: Parsec String () (Expr)
-singleExpr = do var <- varReservada
-                return (var)
-             <|>
-             do l <- lit
+singleExpr = do l <- lit
+                spaces
                 return l
              <|>
              do var <- noneOf reservados
+                spaces
                 return (Var [var])
+             <|>
+             do var <- varReservada
+                spaces
+                return (var)
+             
 
 lit :: Parsec String () (Expr)
 lit = do digits <- many1 digit
          let n = foldl (\x d -> 10*x + toInteger (digitToInt d)) 0 digits
+         spaces
          return (Lit (TInt (fromInteger n)))
       <|>
       do a <- string "True"
+         spaces
          return (Lit (TBool True))
       <|>
       do a <- string "False"
+         spaces
          return (Lit (TBool False))
 
 pvar :: Parsec String () (Pat)
@@ -104,30 +116,27 @@ pvar = do var <- noneOf reservados
 plit :: Parsec String () (Pat)
 plit = do digits <- many1 digit
           let n = foldl (\x d -> 10*x + toInteger (digitToInt d)) 0 digits
+          spaces
           return (PLit (TInt (fromInteger n)))
        <|>
        do a <- string "True"
+          spaces
           return (PLit (TBool True))
        <|>
        do a <- string "False"
+          spaces
           return (PLit (TBool False))
 
 pcon :: Parsec String () (Pat)
 pcon = do var <- conName
           spaces
           ps <- many pat
+          spaces
           return (PCon var ps)
 
 varReservada :: Parsec String () (Expr)
-varReservada = do {string "=="; return (Var "==")}
-               <|>
-               do {string ">="; return (Var ">=")}
-               <|>
-               do {string "<="; return (Var "<=")}
-               <|>
-               do {string "-"; return (Var "-")}
-               <|>
-               do {string ">"; return (Var ">")}
+varReservada = do op <- many1 (oneOf opsymbols)
+                  return (varof op)
                <|>
                do {con <- conName; spaces; return (Var con)}
 

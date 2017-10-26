@@ -10,7 +10,7 @@ data Assump = Id :>: Type deriving (Eq, Show)
 data Literal = Int | Bool | TInt Int | TBool Bool deriving (Eq)
 
 data SimpleType  = TVar Id
-                 | TArr  SimpleType SimpleType
+                 | TArr SimpleType SimpleType
                  | TLit Literal
                  | TCon Id
                  | TApp SimpleType SimpleType
