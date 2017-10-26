@@ -11,20 +11,21 @@ typeOfWithSubst s = case parseExpr s of
                         Left err -> print err
 
 
-tiContext g i = if l /= [] then t else error ("Variavel " ++ i ++ " indefinida\n")
+tiContext g i = if l /= [] then (freshInstance t) else error ("Variavel " ++ i ++ " indefinida\n")
     where
         l = dropWhile (\(i' :>: _) -> i /= i' ) g
         (_ :>: t) = head l
 
-tiExpr g (Var i) = return (tiContext g i, [])
+tiExpr g (Var i) = do r <- tiContext g i
+                      return (r, [])
 tiExpr g (Lit u) = return (TLit u, [])
 tiExpr g (App e e') = do (t, s1) <- tiExpr g e
                          (t', s2) <- tiExpr (apply s1 g) e'
                          b <- freshVar
-                         let s3 = unify (apply s2 t) (t' --> b)
-                         return (apply s3 b, s3 @@ s2 @@ s1)
+                         let s = unify (apply s2 t) (t' --> b)
+                         return (apply s b, s @@ s2 @@ s1)
 tiExpr g (Lam i e) = do b <- freshVar
-                        (t, s)  <- tiExpr (g /+/ [i:>:b]) e
+                        (t, s)  <- tiExpr (g /+/ [i:>:(Forall b)]) e
                         return (apply s (b --> t), s)
 tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          let u1 = unify (apply s1 a) (TLit Bool)
@@ -32,17 +33,17 @@ tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          (c, s3) <- tiExpr (apply s2 (apply u1 (apply s1 g))) e
                          let s = s1 @@ s2 @@ s3 @@ u1
                          let u2 = unify (apply s b) (apply s c)
-                         return (apply u2 (apply s3 (apply s2 (apply u1 (apply s1 b)))), s3 @@ s2 @@ s1 @@ u1 @@ u2)
+                         return (apply u2 (apply u1 b), u1 @@ u2)
 tiExpr g (Case x ls) = tiAlts g x ls
 
 tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
 tiPat g (PVar i) = do b <- freshVar
-                      return (b, g /+/ [i:>:b])
+                      return (b, g /+/ [i:>:(Forall b)])
 tiPat g (PLit tipo) = return (TLit tipo, g)
-tiPat g (PCon i []) = do let t = tiContext g i
+tiPat g (PCon i []) = do t <- tiContext g i
                          return (t, g)
 tiPat g (PCon i xs) = do (ts,g') <- (tiPats g xs)
-                         let tc = freshInstance (tiContext g' i)
+                         tc <- tiContext g' i
                          r <- freshVar
                          let ta = foldr1 TArr (ts ++ [r])
                          let u = unify tc ta
@@ -94,8 +95,6 @@ bad4 = Lam "y" (Case (Var "y") [(PCon "Nothing" [],Var "y"),(PCon "Just" [(PVar 
 what = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothing" [],Var "y")])
 
 -- either example: "\\y.case y of {Left x ->x;Right x -> 1}"
-
-
 
 infer e = runTI (tiExpr quantifiedContext e)
 magic e = fst (infer e)

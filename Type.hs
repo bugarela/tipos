@@ -20,9 +20,6 @@ freshVar = TI (\e -> let v = "t"++show e in (TVar v, e+1))
 runTI (TI m) = let (t, _) = m 0 in t
 
 ----------------------------
-
-
-
 (/+/)      :: [Assump] -> [Assump] -> [Assump]
 a1 /+/ a2    = nubBy assumpEq (a2 ++ a1)
 
@@ -70,8 +67,8 @@ instance Subs Assump where
   tv (_:>:t) = tv t
 
 instance Subs Type where
-  apply s (Forall vs qt) = Forall vs (apply s qt)
-  tv (Forall vs qt)      = tv qt
+  apply s (Forall qt) = Forall (apply s qt)
+  tv (Forall qt)      = tv qt
 
 ------------------------------------
 varBind :: Id -> SimpleType -> Maybe Subst
@@ -113,25 +110,16 @@ quantifyAssump (i,t) = i:>:quantify (tv t) t
 countTypes (TArr l r) = max (countTypes l) (countTypes r)
 countTypes (TApp l r) = max (countTypes l) (countTypes r)
 countTypes (TGen n) = n
-countTypes t = 0
-
-manyFreshs t = (freshGenerator (countTypes t))
-
-freshGenerator 0 = [freshVar]
-freshGenerator n = [freshVar] ++ freshGenerator (n-1)
+countTypes _ = 0
 
 freshInstance :: Type -> TI SimpleType
-freshInstance (Forall t) = do let fs = manyFreshs t
+freshInstance (Forall t) = do fs <- mapM (\_ -> freshVar) [0..(countTypes t)]
                               return (inst fs t)
 
-class Instantiate t where
-  inst  :: [SimpleType] -> t -> t
-
-instance Instantiate SimpleType where
-  inst fs (TArr l r) = TArr (inst fs l) (inst fs r)
-  inst fs (TApp l r) = TApp (inst fs l) (inst fs r)
-  inst fs (TGen n) = fs !! n
-  inst _ t = t
+inst fs (TArr l r) = TArr (inst fs l) (inst fs r)
+inst fs (TApp l r) = TApp (inst fs l) (inst fs r)
+inst fs (TGen n) = fs !! n
+inst _ t = t
 
 
 context = [("Just", TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
@@ -149,3 +137,5 @@ context = [("Just", TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
            ("<", TArr (TLit Int) (TArr (TLit Int) (TLit Bool)))]
 
 quantifiedContext = map quantifyAssump context
+
+typeFromAssump (i:>:t) = t
