@@ -29,11 +29,11 @@ tiExpr g (Lam i e) = do b <- freshVar
                         return (apply s (b --> t), s)
 tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          let u1 = unify (apply s1 a) (TLit Bool)
-                         (b, s2) <- tiExpr (apply u1 (apply s1 g)) t
-                         (c, s3) <- tiExpr (apply s2 (apply u1 (apply s1 g))) e
+                         (b, s2) <- tiExpr (apply (u1 @@ s1) g) t
+                         (c, s3) <- tiExpr (apply (u1 @@ s1 @@ s2) g) e
                          let s = s1 @@ s2 @@ s3 @@ u1
                          let u2 = unify (apply s b) (apply s c)
-                         return (apply u2 (apply u1 b), u1 @@ u2)
+                         return (apply (u1 @@ u2) b, u1 @@ u2)
 tiExpr g (Case x ls) = tiAlts g x ls
 
 tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
@@ -78,11 +78,11 @@ ex2 = Lam "g" (Lam "f" (Lam "x" (App (Var "g") (App (Var "f") (Var "x")))))
 ex3 = Lam "x" (App (App (Var "+") (Var "x")) (Var "x"))
 ex4 = Lam "x" (Lam "y" (If (Var "x") (Var "x") (Var "y")))
 ex5 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (App (App (Var "+") (Var "x")) (Var "y")) (App (App (Var "*") (Var "x")) (Var "y"))))
-ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Var "True") (Var "False")))
+ex6 = Lam "x" (Lam "y" (If (App (App (Var "==") (Var "x")) (Var "y")) (Lit (TBool True)) (Lit (TBool False))))
 ex7 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(App (Var "Just") (Var "x"))),(PCon "Nothing" [],Var "y")])
 ex8 = Lam "y" (Case (Var "y") [(PLit (TInt 1),Var "y"),(PLit (TInt 2),(App (App (Var "+") (Var "y")) (Var "y")))])
 ex9 = Lam "y" (Case (Var "y") [(PLit Int,Var "y")])
-ex10 = (Lam "x" (Lam "w"(If (App (App (Var "=") (Var "x")) (Var "1")) (Lam "y" (Var "x")) (Lam "z" (Var "w")))))
+ex10 = (Lam "x" (Lam "w"(If (App (App (Var "==") (Var "x")) (Lit (TInt 1))) (Lam "y" (Var "x")) (Lam "z" (Var "w")))))
 
 
 --This are examples that should get an error

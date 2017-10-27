@@ -35,11 +35,8 @@ term = do {i <- ifex; return i}
 
 alt :: Parsec String () (Pat, Expr)
 alt = do p <- pat
-         spaces
-         string "->"
-         spaces
-         e <- expr
-         spaces
+         string "-> "
+         e <- singleExpr
          return (p,e)
 
 pat :: Parsec String () (Pat)
@@ -53,37 +50,32 @@ lam :: Parsec String () (Expr)
 lam = do char '\\'
          var <- letter
          char '.'
-         spaces
          e <- expr
-         spaces
          return (Lam [var] e)
 
 ifex :: Parsec String () (Expr)
 ifex = do string "if "
-          e1 <- expr
-          string " then "
-          e2 <- expr
-          string " else "
-          e3 <- expr
-          spaces
+          e1 <- singleExpr
+          string "then "
+          e2 <- singleExpr
+          string "else "
+          e3 <- singleExpr
           return (If e1 e2 e3)
 
 caseex :: Parsec String () (Expr)
 caseex = do string "case "
-            e <- expr
-            string " of {"
+            e <- singleExpr
+            string "of {"
             ps <- alt `sepBy` (char ';')
             char '}'
             return (Case e ps)
 
 apps :: Parsec String () (Expr)
 apps = do as <- many1 singleExpr
-          spaces
           return (foldApp as)
 
 singleExpr :: Parsec String () (Expr)
 singleExpr = do l <- lit
-                spaces
                 return l
              <|>
              do var <- noneOf reservados
@@ -91,9 +83,8 @@ singleExpr = do l <- lit
                 return (Var [var])
              <|>
              do var <- varReservada
-                spaces
                 return (var)
-             
+
 
 lit :: Parsec String () (Expr)
 lit = do digits <- many1 digit
@@ -111,6 +102,7 @@ lit = do digits <- many1 digit
 
 pvar :: Parsec String () (Pat)
 pvar = do var <- noneOf reservados
+          spaces
           return (PVar [var])
 
 plit :: Parsec String () (Pat)
@@ -129,25 +121,24 @@ plit = do digits <- many1 digit
 
 pcon :: Parsec String () (Pat)
 pcon = do var <- conName
-          spaces
           ps <- many pat
-          spaces
           return (PCon var ps)
 
 varReservada :: Parsec String () (Expr)
 varReservada = do op <- many1 (oneOf opsymbols)
+                  spaces
                   return (varof op)
                <|>
-               do {con <- conName; spaces; return (Var con)}
+               do {con <- conName; return (Var con)}
 
 conName :: Parsec String () ([Char])
-conName = do {string "Just"; return "Just"}
+conName = do {string "Just"; spaces; return "Just"}
           <|>
-          do {string "Nothing"; return "Nothing"}
+          do {string "Nothing"; spaces; return "Nothing"}
           <|>
-          do {string "Left"; return "Left"}
+          do {string "Left"; spaces; return "Left"}
           <|>
-          do {string "Right"; return "Right"}
+          do {string "Right"; spaces; return "Right"}
 
 foldApp :: [Expr] -> Expr
 foldApp [x] = x

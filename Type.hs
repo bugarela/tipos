@@ -49,12 +49,13 @@ instance Subs SimpleType where
 
   apply s (TArr l r) =  TArr (apply s l) (apply s r)
   apply s (TApp c v) =  TApp (apply s c) (apply s v)
+  apply _ (TGen n) = TGen n
 
 
   tv (TVar u)  = [u]
   tv (TArr l r) = tv l `union` tv r
   tv (TApp c v) = tv c `union` tv v
-  tv (TCon u) = []
+  tv (TCon _) = []
   tv (TLit _) = []
 
 
@@ -87,9 +88,11 @@ mgu (t,        TVar u   )   =  varBind u t
 mgu (TVar u,   t        )   =  varBind u t
 mgu (t,        TCon u   )   =  varBind u t
 mgu (TCon u,   t        )   =  varBind u t
-mgu (TLit u,    TLit t  )   =  if (u==t || (mLits u t) || (mLits t u)) then Just[] else Nothing
-mgu (_,        _        )   =  Nothing
+mgu (TLit u,   TLit t   )   =  if (u==t || (mLits u t) || (mLits t u)) then Just[] else Nothing
+mgu (u,        t        )   =  if u==t then Just [] else Nothing
 
+mLits (TBool _) (TBool _) = True
+mLits (TInt _) (TInt _) = True
 mLits Bool (TBool _) = True
 mLits Int (TInt _) = True
 mLits _ _ = False
