@@ -35,6 +35,10 @@ tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          let u2 = unify (apply s b) (apply s c)
                          return (apply (u1 @@ u2) b, u1 @@ u2)
 tiExpr g (Case x ls) = tiAlts g x ls
+tiExpr g (Let (i,e) e') = do (t,s1) <- tiExpr g e
+                             let q = quantify (tv t) t
+                             (t',s2) <- tiExpr (apply s1 g /+/ [i:>:q]) e'
+                             return (apply s1 t', s1 @@ s2)
 
 tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
 tiPat g (PVar i) = do b <- freshVar
@@ -83,7 +87,8 @@ ex7 = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],(App (Var "Just") (Var 
 ex8 = Lam "y" (Case (Var "y") [(PLit (TInt 1),Var "y"),(PLit (TInt 2),(App (App (Var "+") (Var "y")) (Var "y")))])
 ex9 = Lam "y" (Case (Var "y") [(PLit Int,Var "y")])
 ex10 = (Lam "x" (Lam "w"(If (App (App (Var "==") (Var "x")) (Lit (TInt 1))) (Lam "y" (Var "x")) (Lam "z" (Var "w")))))
-
+ex11 = (Lam "x" (Let ("y",(App (App (Var "+") (Var "x")) (Var "x"))) (App (App (Var "+") (Var "y")) (Var "y"))))
+ex12 = (Lam "x" (Let ("y",(App (Var "+") (Var "x"))) (App (Var "y") (Lit (TInt 1)))))
 
 --This are examples that should get an error
 bad1 = Lam "x" (App (Var "x") (Var "x"))

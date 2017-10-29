@@ -11,7 +11,7 @@ import Control.Monad.Identity (Identity)
 
 parseExpr e = parse expr "Erro:" e
 
-reservados = "->{},;()\n "
+reservados = "=->{},;()\n "
 operators = map varof ["+","-","*","/","==",">","<",">=","<="]
 opsymbols = "><=-+*/"
 
@@ -30,6 +30,8 @@ term :: Parsec String () (Expr)
 term = do {i <- ifex; return i}
        <|>
        do {c <- caseex; return c}
+       <|>
+       do {l <- letex; return l}
        <|>
        do {a <- apps; return a}
 
@@ -70,20 +72,35 @@ caseex = do string "case "
             char '}'
             return (Case e ps)
 
+letex :: Parsec String () (Expr)
+letex = do string "let "
+           v <- many1 (noneOf reservados)
+           char '='
+           e <- singleExpr
+           string "in "
+           e' <- expr
+           return (Let (v,e) e')
+
 apps :: Parsec String () (Expr)
 apps = do as <- many1 singleExpr
           return (foldApp as)
 
 singleExpr :: Parsec String () (Expr)
-singleExpr = do l <- lit
+singleExpr = do char '('
+                e <- expr
+                char ')'
+                spaces
+                return e
+             <|>
+             do l <- lit
                 return l
+             <|>
+             do var <- varReservada
+                return (var)
              <|>
              do var <- noneOf reservados
                 spaces
                 return (Var [var])
-             <|>
-             do var <- varReservada
-                return (var)
 
 
 lit :: Parsec String () (Expr)
@@ -125,11 +142,13 @@ pcon = do var <- conName
           return (PCon var ps)
 
 varReservada :: Parsec String () (Expr)
-varReservada = do op <- many1 (oneOf opsymbols)
+varReservada = do {con <- conName; return (Var con)}
+               <|>
+               do op <- many1 (oneOf opsymbols)
                   spaces
                   return (varof op)
-               <|>
-               do {con <- conName; return (Var con)}
+
+
 
 conName :: Parsec String () ([Char])
 conName = do {string "Just"; spaces; return "Just"}
