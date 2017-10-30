@@ -22,23 +22,24 @@ tiExpr g (Lit u) = return (TLit u, [])
 tiExpr g (App e e') = do (t, s1) <- tiExpr g e
                          (t', s2) <- tiExpr (apply s1 g) e'
                          b <- freshVar
-                         let s = unify (apply s2 t) (t' --> b)
-                         return (apply s b, s @@ s2 @@ s1)
+                         let u = unify (apply s1 t) (t' --> b)
+                         let s = u @@ s2 @@ s1
+                         return (apply s b, s)
 tiExpr g (Lam i e) = do b <- freshVar
                         (t, s)  <- tiExpr (g /+/ [i:>:(Forall b)]) e
                         return (apply s (b --> t), s)
 tiExpr g (If s t e) = do (a, s1) <- tiExpr g s
                          let u1 = unify (apply s1 a) (TLit Bool)
                          (b, s2) <- tiExpr (apply (u1 @@ s1) g) t
-                         (c, s3) <- tiExpr (apply (u1 @@ s1 @@ s2) g) e
-                         let s = s1 @@ s2 @@ s3 @@ u1
+                         (c, s3) <- tiExpr (apply (u1 @@ s2 @@ s1) g) e
+                         let s = u1 @@ s3 @@ s2 @@ s1
                          let u2 = unify (apply s b) (apply s c)
-                         return (apply (u1 @@ u2) b, u1 @@ u2)
+                         return (apply (u2 @@ s) b, u2 @@ s)
 tiExpr g (Case x ls) = tiAlts g x ls
 tiExpr g (Let (i,e) e') = do (t,s1) <- tiExpr g e
                              let q = quantify (tv t) t
-                             (t',s2) <- tiExpr (apply s1 g /+/ [i:>:q]) e'
-                             return (apply s1 t', s1 @@ s2)
+                             (t',s2) <- tiExpr (apply s1 (g /+/ [i:>:q])) e'
+                             return (apply (s2 @@ s1) t', s2 @@ s1)
 
 tiPat :: [Assump] -> Pat -> TI (SimpleType,[Assump])
 tiPat g (PVar i) = do b <- freshVar
@@ -64,17 +65,17 @@ tiAlts g x [(p,e)] = do (tx,s1) <- tiExpr g x
                         (tp,g') <- tiPat (apply s1 g) p
                         let u = unify tx tp
                         (te,s2) <- tiExpr (apply u g') e
-                        let s = s2 @@ u
+                        let s = s2 @@ u @@ s1
                         return (apply s te, s)
 
 tiAlts g x ((p,e):ls) = do (tx,s1) <- tiExpr g x
                            (tp,g') <- tiPat (apply s1 g) p
-                           let u = unify tx tp
+                           let u = (unify tx tp) @@ s1
                            (te,s2) <- tiExpr (apply u g') e
                            let s = s2 @@ u
                            (t,s') <- (tiAlts (apply s g) x ls)
                            let u' = unify (apply s' te) t
-                           let su = s @@ s' @@ u'
+                           let su = u' @@ s' @@ s
                            return (apply su t, su)
 
 ex1 = Lam "f" (Lam "x" (App (Var "f") (Var "x")))
