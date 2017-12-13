@@ -11,13 +11,17 @@ import Control.Monad.Identity (Identity)
 
 parseExpr e = parse expr "Erro:" e
 
-reservados = "=->{},;()\n "
+parseFile = do f <- readFile "input.txt"
+               let ls = lines f
+               let ds = map (parse adt "Erro:") (init ls)
+               let e = parse expr "Erro:" (last ls)
+               return (ds,e)
+
+reservados = "|=->{},;()\n "
 operators = map varof ["+","-","*","/","==",">","<",">=","<="]
 opsymbols = "><=-+*/"
 
 varof c = Var c
-
----------------- TO DO: tuples ---------------
 
 expr :: Parsec String () (Expr)
 expr = do l <- lam
@@ -148,18 +152,43 @@ varReservada = do {con <- conName; return (Var con)}
                   spaces
                   return (varof op)
 
-
-
 conName :: Parsec String () ([Char])
-conName = do {string "Just"; spaces; return "Just"}
-          <|>
-          do {string "Nothing"; spaces; return "Nothing"}
-          <|>
-          do {string "Left"; spaces; return "Left"}
-          <|>
-          do {string "Right"; spaces; return "Right"}
+conName = do a <- oneOf ['A'..'Z']
+             as <- many letter
+             spaces
+             return ([a] ++ as)
 
 foldApp :: [Expr] -> Expr
 foldApp [x] = x
 foldApp [f,g] = if g `elem` operators then (App g f) else (App f g)
 foldApp (f:(g:as)) = if g `elem` operators then App (App g f) (foldApp as) else App (App f g) (foldApp as)
+
+adt :: Parsec String () [(Id,SimpleType)]
+adt = do string "data"
+         spaces
+         i <- conName
+         spaces
+         ps <- many tvar
+         char '='
+         rs <- tcon `sepBy` (char '|')
+         return (map (buildADT i ps) rs)
+
+tvar :: Parsec String () (SimpleType)
+tvar = do var <- noneOf reservados
+          spaces
+          return (TVar [var])
+
+tcon :: Parsec String () (([Char],[SimpleType]))
+tcon = do spaces
+          c <- conName
+          spaces
+          vs <- many tvar
+          return (c,vs)
+      <|>
+      do spaces
+         c <- conName
+         spaces
+         return (c,[])
+
+
+buildADT i ps (c,vs) = (c,(foldl1 TArr (vs ++ [foldl1 TApp ([TCon i]++ps)])))

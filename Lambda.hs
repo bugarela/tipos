@@ -2,14 +2,40 @@ import Head
 import Type
 import Parser
 
+fromRight (Right x) = x
+
 typeOf s = case parseExpr s of
               Right e -> print (magic e)
               Left err -> print err
 
 typeOfWithSubst s = case parseExpr s of
-                        Right e -> print (infer e)
+                        Right e -> print (infer [] e)
                         Left err -> print err
 
+magicFile = do a <- parseFile
+               inferFile' a magic'
+               return()
+
+inferFile = do a <- parseFile
+               inferFile' a infer
+               return()
+
+inferFile' (ds,e) f = case e of
+                      Left err -> print err
+                      Right e -> case (extract ds) of
+                                    Right s -> print (f (foldr1 (++) s) e)
+                                    Left errs -> print errs
+
+extract ds = if (extract' ds) then Right (map fromRight ds) else Left ([extractErr ds])
+
+extract' [] = True
+extract' (d:ds) = case d of
+                  Left err -> False
+                  Right a -> True && (extract' ds)
+
+extractErr (d:ds) = case d of
+                     Left err -> err
+                     Right a -> extractErr ds
 
 tiContext g i = if l /= [] then (freshInstance t) else error ("Variavel " ++ i ++ " indefinida\n")
     where
@@ -102,5 +128,6 @@ what = Lam "y" (Case (Var "y") [(PCon "Just" [(PVar "x")],Var "x"),(PCon "Nothin
 
 -- either example: "\\y.case y of {Left x ->x;Right x -> 1}"
 
-infer e = runTI (tiExpr quantifiedContext e)
-magic e = fst (infer e)
+infer ds e = runTI (tiExpr (quantifiedContext ds) e)
+magic e = magic' [] e
+magic' ds e = fst (infer ds e)

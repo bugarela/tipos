@@ -139,6 +139,6 @@ context = [("Just", TArr (TVar "a") (TApp (TCon "Maybe") (TVar "a"))),
            (">", TArr (TLit Int) (TArr (TLit Int) (TLit Bool))),
            ("<", TArr (TLit Int) (TArr (TLit Int) (TLit Bool)))]
 
-quantifiedContext = map quantifyAssump context
+quantifiedContext ds = map quantifyAssump (context ++ ds)
 
 typeFromAssump (i:>:t) = t

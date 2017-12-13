@@ -1,0 +1,4 @@
+data A a = Cons a | Wow a
+data B = Super A
+data E a b = L a | R b
+\y.case y of {L x -> x;R x -> 1}
