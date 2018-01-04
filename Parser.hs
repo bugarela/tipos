@@ -17,7 +17,7 @@ parseFile = do f <- readFile "input.txt"
                let e = parse expr "Erro:" (last ls)
                return (ds,e)
 
-reservados = "|=->{},;()\n "
+reservados = ".|=->{},;()\n "
 operators = map varof ["+","-","*","/","==",">","<",">=","<="]
 opsymbols = "><=-+*/"
 
@@ -40,9 +40,11 @@ term = do {i <- ifex; return i}
        do {a <- apps; return a}
 
 alt :: Parsec String () (Pat, Expr)
-alt = do p <- pat
-         string "-> "
-         e <- singleExpr
+alt = do spaces
+         p <- pat
+         string "->"
+         spaces
+         e <- expr
          return (p,e)
 
 pat :: Parsec String () (Pat)
@@ -54,10 +56,10 @@ pat = do {p <- plit; return p}
 
 lam :: Parsec String () (Expr)
 lam = do char '\\'
-         var <- letter
+         var <- varName
          char '.'
          e <- expr
-         return (Lam [var] e)
+         return (Lam var e)
 
 ifex :: Parsec String () (Expr)
 ifex = do string "if "
@@ -102,9 +104,9 @@ singleExpr = do char '('
              do var <- varReservada
                 return (var)
              <|>
-             do var <- noneOf reservados
+             do var <- varName
                 spaces
-                return (Var [var])
+                return (Var var)
 
 
 lit :: Parsec String () (Expr)
@@ -113,18 +115,22 @@ lit = do digits <- many1 digit
          spaces
          return (Lit (TInt (fromInteger n)))
       <|>
-      do a <- string "True"
+      do try $ do {string "True"}
          spaces
          return (Lit (TBool True))
       <|>
-      do a <- string "False"
+      do try $ do {string "False"}
          spaces
          return (Lit (TBool False))
 
+con :: Parsec String () (Expr)
+con = do c <- conName
+         return (Con c)
+
 pvar :: Parsec String () (Pat)
-pvar = do var <- noneOf reservados
+pvar = do var <- varName
           spaces
-          return (PVar [var])
+          return (PVar var)
 
 plit :: Parsec String () (Pat)
 plit = do digits <- many1 digit
@@ -132,21 +138,21 @@ plit = do digits <- many1 digit
           spaces
           return (PLit (TInt (fromInteger n)))
        <|>
-       do a <- string "True"
+       do try $ do {string "True"}
           spaces
           return (PLit (TBool True))
        <|>
-       do a <- string "False"
+       do try $ do {string "False"}
           spaces
           return (PLit (TBool False))
 
 pcon :: Parsec String () (Pat)
-pcon = do var <- conName
+pcon = do c <- conName
           ps <- many pat
-          return (PCon var ps)
+          return (PCon c ps)
 
 varReservada :: Parsec String () (Expr)
-varReservada = do {con <- conName; return (Var con)}
+varReservada = do {con <- conName; return (Con con)}
                <|>
                do op <- many1 (oneOf opsymbols)
                   spaces
@@ -155,6 +161,12 @@ varReservada = do {con <- conName; return (Var con)}
 conName :: Parsec String () ([Char])
 conName = do a <- oneOf ['A'..'Z']
              as <- many letter
+             spaces
+             return ([a] ++ as)
+
+varName :: Parsec String () ([Char])
+varName = do a <- noneOf (['A'..'Z'] ++ reservados)
+             as <- many (noneOf reservados)
              spaces
              return ([a] ++ as)
 
@@ -174,21 +186,23 @@ adt = do string "data"
          return (map (buildADT i ps) rs)
 
 tvar :: Parsec String () (SimpleType)
-tvar = do var <- noneOf reservados
+tvar = do var <- varName
           spaces
-          return (TVar [var])
+          return (TVar var)
 
 tcon :: Parsec String () (([Char],[SimpleType]))
 tcon = do spaces
           c <- conName
           spaces
-          vs <- many tvar
+          vs <- many tParam
           return (c,vs)
-      <|>
-      do spaces
-         c <- conName
-         spaces
-         return (c,[])
 
+tParam :: Parsec String () SimpleType
+tParam = do c <- conName
+            spaces
+            return (TCon c)
+         <|>
+         do t <- tvar
+            return t
 
 buildADT i ps (c,vs) = (c,(foldl1 TArr (vs ++ [foldl1 TApp ([TCon i]++ps)])))

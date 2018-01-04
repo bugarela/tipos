@@ -26,6 +26,7 @@ data Expr =  Var Id
             | App Expr Expr
             | Lam Id Expr
             | Lit Literal
+            | Con Id
             | If Expr Expr Expr
             | Case Expr [(Pat,Expr)]
             | Let (Id,Expr) Expr
@@ -33,12 +34,10 @@ data Expr =  Var Id
 
 instance Show SimpleType where
     show (TVar i) = i
-    show (TArr (TVar i) t) = i++"->"++show t
-    show (TArr (TLit tipo) t) = show tipo ++"->"++show t
-    show (TArr t t') = "("++show t++")"++"->"++show t'
+    show (TArr (TArr a b) t') = "("++show (TArr a b)++")"++"->"++show t'
+    show (TArr t t') = show t++"->"++show t'
     show (TCon i) = i
     show (TApp c v) = show c ++ " " ++ show v
-
     show (TLit tipo) = show tipo
     show (TGen n) = "tg" ++ show n
 

@@ -45,10 +45,12 @@ tiContext g i = if l /= [] then (freshInstance t) else error ("Variavel " ++ i +
 tiExpr g (Var i) = do r <- tiContext g i
                       return (r, [])
 tiExpr g (Lit u) = return (TLit u, [])
+tiExpr g (Con c) = do r <- tiContext g c
+                      return (r, [])
 tiExpr g (App e e') = do (t, s1) <- tiExpr g e
                          (t', s2) <- tiExpr (apply s1 g) e'
                          b <- freshVar
-                         let u = unify (apply s1 t) (t' --> b)
+                         let u = unify (apply s2 t) (t' --> b)
                          let s = u @@ s2 @@ s1
                          return (apply s b, s)
 tiExpr g (Lam i e) = do b <- freshVar
